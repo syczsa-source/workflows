@@ -1,36 +1,73 @@
-name: 上传并提取 DEB 包
+name: 使用上传的DEB包
 on:
-  # 手动触发 → 支持直接上传本地 DEB 文件
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发
     inputs:
       deb_file:
-        description: "上传你的 .deb 包"
-        type: file  # 🔥 核心：允许上传本地文件
+        description: "上传你的.deb包"
+        type: file    # 核心：允许上传本地文件
         required: true
 
 jobs:
-  extract:
-    runs-on: ubuntu-latest
+  use-deb:
+    runs-on: ubuntu-latest  # 必须用Ubuntu，自带dpkg工具
     steps:
-      - name: 检出仓库
+      - name: 1. 检出仓库（基础步骤）
         uses: actions/checkout@v4
 
-      - name: 获取上传的 DEB 包
+      # ======================
+      # 🔥 关键：获取上传的DEB包
+      # ======================
+      - name: 2. 获取并准备上传的DEB包
         run: |
-          # 自动保存上传的文件为 package.deb
-          mv "${{ github.event.inputs.deb_file }}" package.deb
-          echo "✅ DEB 包上传完成"
+          # 变量${{ github.event.inputs.deb_file }} = 上传文件的临时路径
+          # 把它移动到工作目录，重命名为package.deb（方便后续使用）
+          mv "${{ github.event.inputs.deb_file }}" my_package.deb
+          echo "✅ 已获取上传的DEB包：my_package.deb"
+          ls -lh my_package.deb  # 查看文件大小，确认上传成功
 
-      - name: 提取 DEB 包所有内容
+      # ======================
+      # ✅ 使用方式1：提取DEB包内容（最常用）
+      # ======================
+      - name: 3. 提取DEB包所有文件/代码
         run: |
-          mkdir -p output
-          dpkg -x package.deb output/files    # 提取程序文件
-          dpkg -e package.deb output/control  # 提取版本/依赖等信息
-          echo "✅ DEB 包提取完成"
+          mkdir -p extracted  # 创建输出文件夹
+          dpkg -x my_package.deb extracted/files  # 提取程序/代码文件
+          dpkg -e my_package.deb extracted/control # 提取版本/依赖信息
+          echo "✅ DEB包提取完成！"
 
-      - name: 上传提取结果（可下载）
+      # ======================
+      # ✅ 使用方式2：查看DEB包详细信息
+      # ======================
+      - name: 4. 查看DEB包元数据
+        run: |
+          echo "=== DEB包信息 ==="
+          dpkg -I my_package.deb  # 查看包名、版本、架构、依赖
+
+      # ======================
+      # ✅ 使用方式3：安装DEB包（测试/运行）
+      # ======================
+      - name: 5. 安装DEB包（可选）
+        run: |
+          sudo dpkg -i my_package.deb || sudo apt-get -f install -y
+          echo "✅ DEB包安装完成！"
+
+      # ======================
+      # ✅ 使用方式4：拆解DEB原始包（高级）
+      # ======================
+      - name: 6. 拆解DEB包（data/control文件）
+        run: |
+          mkdir -p deb_raw
+          ar x my_package.deb --output deb_raw  # 拆解为3个核心文件
+          echo "✅ DEB包原始文件拆解完成！"
+
+      # ======================
+      # 📤 最后：上传所有结果（可下载）
+      # ======================
+      - name: 7. 上传所有处理结果
         uses: actions/upload-artifact@v4
         with:
-          name: deb_extracted_result
-          path: output/
-          retention-days: 7  # 结果保留 7 天
+          name: deb_used_result
+          path: |
+            extracted/  # 提取的文件
+            deb_raw/    # 拆解的原始文件
+          retention-days: 7  # 保留7天
