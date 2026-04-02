@@ -1,4 +1,4 @@
-name: 提取DEB + 自动解析dylib文件
+name: 提取DEB + 自动解析dylib
 on:
   push:
     paths:
@@ -9,51 +9,43 @@ jobs:
   extract-and-analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取仓库文件
+      - name: 拉取仓库
         uses: actions/checkout@v4
 
-      # 1. 提取DEB包
-      - name: 提取DEB包内容
+      # 1. 提取 DEB 包
+      - name: 提取 DEB
         run: |
           DEB_FILE=$(ls *.deb | head -1)
           mkdir -p deb_extracted
           dpkg -x "$DEB_FILE" deb_extracted/files
-          echo "✅ DEB提取完成"
 
-      # 2. 安装dylib解析工具（工作流自动装）
+      # 2. 安装工具（只装 binutils 就够了）
       - name: 安装解析工具
-        run: sudo apt-get update && sudo apt-get install -y binutils strings
+        run: sudo apt-get update && sudo apt-get install -y binutils
 
-      # 3. 核心：自动找到dylib并解析（在线直接看结果！）
-      - name: 🔍 解析 BluedHook.dylib 文件
+      # 3. 自动解析 dylib（你要的代码信息全在这里）
+      - name: 解析 BluedHook.dylib
         run: |
-          # 自动定位你的dylib文件
           DYLIB_PATH="deb_extracted/files/var/jb/Library/MobileSubstrate/DynamicLibraries/BluedHook.dylib"
-          
+
           echo "========================"
-          echo "📋 1. dylib文件基础信息"
+          echo "📋 文件信息"
           echo "========================"
           file "$DYLIB_PATH"
-          
+
           echo -e "\n========================"
-          echo "🔤 2. dylib明文字符串（核心代码/功能关键词）"
+          echo "🔤 可读代码/字符串（核心）"
           echo "========================"
           strings "$DYLIB_PATH"
-          
-          echo -e "\n========================"
-          echo "⚙️ 3. dylib架构/函数信息"
-          echo "========================"
-          objdump -t "$DYLIB_PATH" 2>/dev/null || echo "架构解析完成"
-          
-          # 保存解析结果到文件，可下载
-          strings "$DYLIB_PATH" > dylib_解析结果.txt
-          echo "✅ 解析完成！结果已保存"
 
-      # 4. 上传解析报告（可下载）
-      - name: 上传解析结果
+          # 保存结果
+          strings "$DYLIB_PATH" > dylib_分析结果.txt
+
+      # 4. 上传可下载文件
+      - name: 上传结果
         uses: actions/upload-artifact@v4
         with:
-          name: dylib解析报告
+          name: dylib分析结果
           path: |
-            dylib_解析结果.txt
+            dylib_分析结果.txt
             deb_extracted/
