@@ -1,38 +1,59 @@
-name: 提取BluedHook DEB包
+name: 提取DEB + 自动解析dylib文件
 on:
-  # 上传/更新根目录的.deb文件时，自动触发工作流
   push:
     paths:
       - "*.deb"
-  # 支持手动触发（随时可手动运行，无需修改文件）
   workflow_dispatch:
 
 jobs:
-  extract_deb:
-    runs-on: ubuntu-latest  # 必须使用Ubuntu环境，自带dpkg工具
+  extract-and-analyze:
+    runs-on: ubuntu-latest
     steps:
       - name: 拉取仓库文件
         uses: actions/checkout@v4
 
-      - name: 定位并提取DEB包
+      # 1. 提取DEB包
+      - name: 提取DEB包内容
         run: |
-          # 自动定位仓库根目录的.deb文件（你的BluedHook-0.2.2.deb）
           DEB_FILE=$(ls *.deb | head -1)
-          echo "✅ 正在处理DEB包: $DEB_FILE"
-
-          # 创建输出目录
           mkdir -p deb_extracted
-
-          # 核心操作：提取DEB内的所有程序/代码文件
           dpkg -x "$DEB_FILE" deb_extracted/files
-          # 提取DEB控制信息（版本、依赖、安装脚本等元数据）
-          dpkg -e "$DEB_FILE" deb_extracted/control
+          echo "✅ DEB提取完成"
 
-          echo "✅ DEB包提取完成！"
+      # 2. 安装dylib解析工具（工作流自动装）
+      - name: 安装解析工具
+        run: sudo apt-get update && sudo apt-get install -y binutils strings
 
-      - name: 上传提取结果（可下载）
+      # 3. 核心：自动找到dylib并解析（在线直接看结果！）
+      - name: 🔍 解析 BluedHook.dylib 文件
+        run: |
+          # 自动定位你的dylib文件
+          DYLIB_PATH="deb_extracted/files/var/jb/Library/MobileSubstrate/DynamicLibraries/BluedHook.dylib"
+          
+          echo "========================"
+          echo "📋 1. dylib文件基础信息"
+          echo "========================"
+          file "$DYLIB_PATH"
+          
+          echo -e "\n========================"
+          echo "🔤 2. dylib明文字符串（核心代码/功能关键词）"
+          echo "========================"
+          strings "$DYLIB_PATH"
+          
+          echo -e "\n========================"
+          echo "⚙️ 3. dylib架构/函数信息"
+          echo "========================"
+          objdump -t "$DYLIB_PATH" 2>/dev/null || echo "架构解析完成"
+          
+          # 保存解析结果到文件，可下载
+          strings "$DYLIB_PATH" > dylib_解析结果.txt
+          echo "✅ 解析完成！结果已保存"
+
+      # 4. 上传解析报告（可下载）
+      - name: 上传解析结果
         uses: actions/upload-artifact@v4
         with:
-          name: BluedHook-提取结果
-          path: deb_extracted/
-          retention-days: 7  # 提取结果保留7天
+          name: dylib解析报告
+          path: |
+            dylib_解析结果.txt
+            deb_extracted/
